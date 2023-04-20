@@ -1,16 +1,19 @@
 # 遍历指定文件夹中所有文件，并获取url
 import os
 import re
+import threading
+import time
+
 import requests
 from urllib.parse import urlparse
 
 # 需要查找的文件夹
-rootFile = r"D:\project\p1"
+rootFile = r"D:\project"
 # 保存文件的路径
 saveFile = r'D:\temp'
 
 # 忽略的文件夹
-ignorePath = ['node_modules', 'icon', 'package-lock.json', 'package.json', 'yarn.lock']
+ignorePath = ['.git', 'node_modules', 'miniprogram_npm', 'icon', 'package-lock.json', 'package.json', 'yarn.lock']
 # 文件路径
 files = []
 # url路径
@@ -42,7 +45,7 @@ def getFileUrl(files):
         with open(file, 'r', encoding='UTF-8') as f:
             urls = f.read()
             # 查找文件中的url
-            inner_links = re.findall('"((http)s?://.*?)"', urls)
+            inner_links = re.findall('[("\']((http)s?://.*?)[\'")]', urls)
             # 遍历所有的url并保存
             for url in inner_links:
                 links.append(url[0])
@@ -55,11 +58,13 @@ def parseUrl(links):
         path = urlparse(url).path
         # 2. 分割路径和文件名
         result = os.path.split(path)
-        createDir(saveFile + result[0], result[1], url)
+        # 3. 多线程下载
+        t = threading.Thread(target=createDir, args=(saveFile + result[0], result[1], url))
+        t.start()
 
 
 # 下载并保存文件
-def createDir(path, filename, url):
+def createDir(path: str, filename: str, url: str) -> None:
     try:
         # 下载文件
         file = requests.get(url)
@@ -73,11 +78,17 @@ def createDir(path, filename, url):
             open(filepath, 'wb').write(file.content)
     except BaseException as a:
         print('下载出错', a)
+        print('出错链接：', url)
 
 
 if __name__ == '__main__':
+    start_time = time.time()  # 记录程序开始运行时间
+
     # 获取所有文件路径
     traverseFile(rootFile)
     getFileUrl(files)
     parseUrl(links)
+
+    end_time = time.time()  # 记录程序结束运行时间
     print("下载完成")
+    print('耗时 %f 秒' % (end_time - start_time))
